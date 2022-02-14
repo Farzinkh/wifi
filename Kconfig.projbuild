@@ -1,0 +1,127 @@
+menu "WIFI Configuration"
+
+	choice WIFI_MODE
+		bool "Choose operation mode"
+		default AP
+		help
+			station or accespoint.
+		config AP
+			bool "AP"
+		config STA
+			bool "STA"
+		config SMART
+			bool "SMART"    
+	endchoice
+
+	config WIFI_MODE
+		int 
+		default 1 if STA
+		default 0 if AP
+		default 2 if SMART
+		
+	config ESP_AP_WIFI_SSID
+		string "WiFi SSID FOR ESP"
+		depends on AP || SMART
+		default "myssid"
+		help
+			SSID (network name) for ESP.
+
+	config ESP_AP_WIFI_PASSWORD
+		string "WiFi Password FOR ESP"
+		depends on AP || SMART
+		default "mypassword"
+		help
+			WiFi password (WPA or WPA2) FOR ESP to use min length is 8 .
+	
+	config ESP_STA_WIFI_SSID
+		string "WiFi SSID FOR ROUTER"
+		depends on STA || SMART
+		default "myssid2"
+		help
+			SSID (network name) FOR ROUTER to connect to.
+
+	config ESP_STA_WIFI_PASSWORD
+		string "WiFi Password FOR ROUTER"
+		depends on STA || SMART
+		default "mypassword2"
+		help
+			WiFi password (WPA or WPA2) FOR ROUTER to use min length is 8 . 
+
+	config ESP_MAXIMUM_RETRY
+		int "Maximum retry"
+		depends on STA || SMART
+		default 5
+		help
+			Set the Maximum retry to avoid station reconnecting to the AP unlimited when the AP is really inexistent.
+	config ESP_MAX_STA_CONN
+		int "Maximal STA connections"
+		depends on AP || SMART
+		default 4
+		help
+			Max number of the STA connects to AP.
+	config ESP_WIFI_CHANNEL
+		int "WiFi Channel"
+		depends on AP || SMART
+		range 1 13
+		default 1
+		help
+			WiFi channel (network channel) for the example to use. 		
+	config MDNS_HOSTNAME
+		string "mDNS Hostname"
+		default "ftp-server"
+		help
+			mDNS Hostname for FTP Server.
+
+	config STATIC_IP
+		bool "Enable Static IP Address"
+		default false
+		help
+			Enable Static IP Address.
+
+	config STATIC_IP_ADDRESS
+		depends on STATIC_IP
+		string "Static IP Address"
+		default "192.168.10.100"
+		help
+			Static IP Address for Station.
+
+	config STATIC_GW_ADDRESS
+		depends on STATIC_IP
+		string "Static GW Address"
+		default "192.168.1.1"
+		help
+			Static GW Address for Station.
+
+	config STATIC_NM_ADDRESS
+		depends on STATIC_IP
+		string "Static Netmask"
+		default "255.255.255.0"
+		help
+			Static Netmask for Statione.
+
+	config NTP_SERVER
+		string "NTP Server"
+		default "pool.ntp.org"
+		help
+			Hostname for NTP Server.
+
+	config LOCAL_TIMEZONE
+		int "Your TimeZone"
+		range 0 23
+		default 0
+		help
+			Your local timezone. When it is 0, Greenwich Mean Time.
+			
+	config BLINK_GPIO
+		int "Blink GPIO number"
+		range 0 48
+		default 8 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32H2
+		default 18 if IDF_TARGET_ESP32S2
+		default 33 if IDF_TARGET_ESP32
+		default 33
+		help
+			GPIO number (IOxx) to blink on and off or the RMT signal for the addressable LED.
+			Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to blink.		
+
+
+endmenu
