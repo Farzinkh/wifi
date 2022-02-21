@@ -195,6 +195,13 @@ static void sta_event_handler(void* arg, esp_event_base_t event_base,
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         strcpy(key, "mode");
         save_key_value(key,"1");
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_BSS_RSSI_LOW){ //week signal
+        ESP_LOGE(TAG,"LOW RSSI");
+        #if CONFIG_SMART
+            strcpy(key, "mode");
+            save_key_value(key,"0");
+            esp_restart();
+        #endif
     }
     ESP_LOGI(TAG, "Event %d happend" ,event_id);
 }
@@ -309,6 +316,11 @@ esp_err_t wifi_init_sta()
 	ESP_LOGI(TAG, "connect to ap SSID:%s", ESP_STA_WIFI_SSID);
 	status=0;
 	vEventGroupDelete(s_wifi_event_group); 
+	err = esp_wifi_set_rssi_threshold(-80);
+    if (err != ESP_OK )
+    {
+        ESP_LOGE(TAG, "Error (%s)", esp_err_to_name(err));
+    }
 	return ret_value; 
 }
 
@@ -509,4 +521,13 @@ void check_time()
 	ESP_LOGI(TAG, "The local date/time is: %s", strftime_buf);
 	ESP_LOGW(TAG, "This server manages file timestamps in GMT.");
 
+}
+
+//betwen -100 to 0
+int8_t get_rssi() 
+{
+    wifi_ap_record_t ap;
+    esp_wifi_sta_get_ap_info(&ap);
+    ESP_LOGI(TAG,"%d", ap.rssi);
+    return ap.rssi;
 }

@@ -23,6 +23,7 @@
 #define BLINK_GPIO CONFIG_BLINK_GPIO
 
 void check_time(); // useing SNTP
+int8_t get_rssi();
 esp_err_t wifi_init(); // smart config
 esp_err_t wifi_init_sta();
 void initialise_mdns(void); // MDNS
