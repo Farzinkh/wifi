@@ -2,16 +2,47 @@
 This is very simple component for working with WIFI base on ESP_IDF V4.3.
  
 ## Installation
-in your project directory create components folder and move into it.
+in your project directory create `components` folder and move into it.
 
  `git clone https://github.com/Farzinkh/wifi.git`
 
  now import it in your main.c by `#include "wifi.h"`.
 
  and choice beetwen STA , AP , SMART modes.
-## Config
-this application is secured by DES in default config but you can simply change it to AES or turn off encrypting,whatever you decide to do remember to do it
-in same way at the other side and also if you choose to encrypt you have to share your encrypt file(.bin) manually and use `-key <address_of_key>` in client side.
+## OTA config
+move `sdkconfig.defaults` to root of your project and create `server_certs` folder and run
+
+`openssl req -x509 -newkey rsa:2048 -keyout server_certs/ca_key.pem -out server_certs/ca_cert.pem -days 365 -nodes`
+
+enter server ip as common name then run 
+
+`openssl s_server -WWW -key server_certs/ca_key.pem -cert server_certs/ca_cert.pem -port 8070`
+
+and you are done whenever you change app version in menuconfig and recompile your code by `idf.py build`
+and restart esp32 it will update constantly.
+
+## API
+`wifi_init_sta()` station mode.
+
+`wifi_init_softap()` AP mode.
+
+`wifi_init()` smart mode.
+
+`get_rssi()` get rssi value.
+
+`initialise_mdns()` init mdns.
+
+`check_time()` update time if internet is available.
+
+`get_ip()` get ip address.
+
+`wifi_scan()` scan for APs.
+
+`start_ota()` update code by ota.
+
+`save_key_value()` save data in nvs.
+
+`load_key_value()` load data from nvs.
 
  *Enjoy :)*
 

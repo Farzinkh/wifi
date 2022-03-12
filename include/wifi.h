@@ -22,6 +22,9 @@
 
 #define BLINK_GPIO CONFIG_BLINK_GPIO
 
+#define DEFAULT_SCAN_LIST_SIZE CONFIG_SCAN_LIST_SIZE
+#define OTA_URL_SIZE 256
+
 void check_time(); // useing SNTP
 int8_t get_rssi();
 esp_err_t wifi_init(); // smart config
@@ -29,6 +32,10 @@ esp_err_t wifi_init_sta();
 void initialise_mdns(void); // MDNS
 void wifi_init_softap(void);
 tcpip_adapter_ip_info_t get_ip(); // print ip info
+void wifi_scan(void);
+
+//ota
+void start_ota(void);
 
 // NVS tasks
 esp_err_t save_key_value(char * key, char * value); 
