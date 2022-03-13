@@ -10,7 +10,7 @@ in your project directory create `components` folder and move into it.
 
  and choice beetwen STA , AP , SMART modes.
 ## OTA config
-move `sdkconfig.defaults` to root of your project and create `server_certs` folder and run
+move `sdkconfig.defaults` and `partitions.csv` to root of your project and create `server_certs` folder and run
 
 `openssl req -x509 -newkey rsa:2048 -keyout server_certs/ca_key.pem -out server_certs/ca_cert.pem -days 365 -nodes`
 
@@ -39,6 +39,10 @@ and restart esp32 it will update constantly.
 `wifi_scan()` scan for APs.
 
 `start_ota()` update code by ota.
+
+`ota_verify()` to verify your ota app.
+
+`ota_discredit()` to flag your ota app as invalid.
 
 `save_key_value()` save data in nvs.
 

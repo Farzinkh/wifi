@@ -24,56 +24,42 @@
 
 #include "wifi.h"
 
-static uint8_t s_led_state = 0;
+int led_state ;
 esp_err_t err;
+TaskHandle_t blink1Handle;
+TaskHandle_t blink2Handle;
+TaskHandle_t blink3Handle;
 
 static void configure_led(void)
 {
     gpio_reset_pin(BLINK_GPIO);
+    led_state=gpio_get_level(BLINK_GPIO);
     /* Set the GPIO as a push/pull output */
     gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(BLINK_GPIO,1);
+    gpio_set_level(BLINK_GPIO,led_state);
 }
 
-static void blink_mode_1(void)
+static void blink_mode_1(void *pvParameter)
 {
     int counter;
+    uint8_t s_led_state=led_state;
     for(counter=0;counter<6;counter=counter+1){
-    /* Set the GPIO level according to the state (LOW or HIGH)*/
-    gpio_set_level(BLINK_GPIO, s_led_state);
-    /* Toggle the LED state */
-    s_led_state = !s_led_state;
-    vTaskDelay(1000 / portTICK_PERIOD_MS);  
+        /* Set the GPIO level according to the state (LOW or HIGH)*/
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        s_led_state = !s_led_state;
+        vTaskDelay(500 / portTICK_PERIOD_MS);  
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        s_led_state = !s_led_state;
+        vTaskDelay(500 / portTICK_PERIOD_MS);
     }
     gpio_reset_pin(BLINK_GPIO);
+    vTaskDelete(NULL);
 }
 
-static void blink_mode_2(void)
+static void blink_mode_2(void *pvParameter)
 {
     int counter;
-    for(counter=0;counter<6;counter=counter+1){
-    /* Set the GPIO level according to the state (LOW or HIGH)*/
-    gpio_set_level(BLINK_GPIO, s_led_state);
-    s_led_state = !s_led_state;
-    vTaskDelay(100 / portTICK_PERIOD_MS);  
-    gpio_set_level(BLINK_GPIO, s_led_state);
-    s_led_state = !s_led_state;
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    gpio_set_level(BLINK_GPIO, s_led_state);
-    s_led_state = !s_led_state;
-    vTaskDelay(100 / portTICK_PERIOD_MS);  
-    gpio_set_level(BLINK_GPIO, s_led_state);
-    s_led_state = !s_led_state;
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    /* Toggle the LED state */
-    vTaskDelay(1000 / portTICK_PERIOD_MS);  
-    }
-    gpio_reset_pin(BLINK_GPIO);
-}
-
-static void blink_mode_3(void)
-{
-    int counter;
+    uint8_t s_led_state=led_state;
     for(counter=0;counter<12;counter=counter+1){
     /* Set the GPIO level according to the state (LOW or HIGH)*/
     gpio_set_level(BLINK_GPIO, s_led_state);
@@ -82,23 +68,46 @@ static void blink_mode_3(void)
     gpio_set_level(BLINK_GPIO, s_led_state);
     s_led_state = !s_led_state;
     vTaskDelay(100 / portTICK_PERIOD_MS);
+    gpio_set_level(BLINK_GPIO, s_led_state);
+    s_led_state = !s_led_state;
+    vTaskDelay(100 / portTICK_PERIOD_MS);  
+    gpio_set_level(BLINK_GPIO, s_led_state);
+    s_led_state = !s_led_state;
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    /* Toggle the LED state */
+    vTaskDelay(1000 / portTICK_PERIOD_MS);  
     }
     gpio_reset_pin(BLINK_GPIO);
+    vTaskDelete(NULL);
 }
 
-static void blink_mode_4(void)
+static void blink_mode_3(void *pvParameter)
 {
     int counter;
-    for(counter=0;counter<6;counter=counter+1){
-    /* Set the GPIO level according to the state (LOW or HIGH)*/
-    gpio_set_level(BLINK_GPIO, s_led_state);
-    s_led_state = !s_led_state;
-    vTaskDelay(1000 / portTICK_PERIOD_MS);  
-    gpio_set_level(BLINK_GPIO, s_led_state);
-    s_led_state = !s_led_state;
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    uint8_t s_led_state=led_state;
+    while(1){
+        /* Set the GPIO level according to the state (LOW or HIGH)*/
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        s_led_state = !s_led_state;
+        vTaskDelay(100 / portTICK_PERIOD_MS);  
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        s_led_state = !s_led_state;
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        s_led_state = !s_led_state;
+        vTaskDelay(100 / portTICK_PERIOD_MS);  
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        s_led_state = !s_led_state;
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        s_led_state = !s_led_state;
+        vTaskDelay(100 / portTICK_PERIOD_MS);  
+        gpio_set_level(BLINK_GPIO, s_led_state);
+        /* Toggle the LED state */
+        vTaskDelay(1000 / portTICK_PERIOD_MS);  
     }
     gpio_reset_pin(BLINK_GPIO);
+    vTaskDelete(NULL);
 }
 
 #if CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK
@@ -197,7 +206,6 @@ void ota_task(void *pvParameter)
         .max_http_request_size = CONFIG_OTA_HTTP_REQUEST_SIZE,
 #endif
     };
-
     esp_https_ota_handle_t https_ota_handle = NULL;
     esp_err_t err = esp_https_ota_begin(&ota_config, &https_ota_handle);
     if (err != ESP_OK) {
@@ -236,8 +244,6 @@ void ota_task(void *pvParameter)
         if ((err == ESP_OK) && (ota_finish_err == ESP_OK)) {
             ESP_LOGI(TAG2, "ESP_HTTPS_OTA upgrade successful. Rebooting ...");
             xEventGroupSetBits(s_ota_event_group, WIFI_CONNECTED_BIT);
-            configure_led();
-            blink_mode_2();
             vTaskDelay(1000 / portTICK_PERIOD_MS);  
             esp_restart();
         } else {
@@ -254,6 +260,8 @@ ota_end:
     esp_https_ota_abort(https_ota_handle);
     ESP_LOGE(TAG2, "ESP_HTTPS_OTA upgrade failed");
     xEventGroupSetBits(s_ota_event_group, WIFI_FAIL_BIT);
+    vTaskDelete(blink3Handle);
+    gpio_reset_pin(BLINK_GPIO);
     vTaskDelete(NULL);
 }
 
@@ -462,7 +470,7 @@ esp_err_t wifi_init_sta()
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
-    blink_mode_4();
+    xTaskCreate(&blink_mode_1, "blink_1", 1024 * 2, NULL, 4, &blink1Handle);
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
@@ -477,7 +485,6 @@ esp_err_t wifi_init_sta()
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
                  ESP_STA_WIFI_SSID, ESP_STA_WIFI_PASS);              
-        blink_mode_1();  
                  
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGE(TAG, "Failed to connect to SSID:%s, password:%s",
@@ -514,7 +521,6 @@ static void AP_wifi_event_handler(void *arg, esp_event_base_t event_base,
         wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
         ESP_LOGI(TAG, "station " MACSTR " join, AID=%d",
                  MAC2STR(event->mac), event->aid);
-        blink_mode_3();         
     }
     else if (event_id == WIFI_EVENT_AP_STADISCONNECTED)
     {
@@ -563,7 +569,7 @@ void wifi_init_softap(void)
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
              ESP_AP_WIFI_SSID, ESP_AP_WIFI_PASS, ESP_WIFI_CHANNEL);
-    blink_mode_2();        
+    xTaskCreate(&blink_mode_2, "blink_2", 1024 * 2, NULL, 4, &blink2Handle);
     status=1;
 }
 #endif 
@@ -839,32 +845,66 @@ void wifi_scan(void)
 
 }
 
-
-void start_ota(void)
+void ota_verify()
 {
+    if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+        ESP_LOGI(TAG2, "App is valid, rollback cancelled successfully");
+    } else {
+        ESP_LOGE(TAG2, "Failed to cancel rollback");
+    }
+}
+
+void ota_discredit()
+{
+    err=esp_ota_mark_app_invalid_rollback_and_reboot();
+    if ( err== ESP_FAIL) {
+        ESP_LOGE(TAG2, "Rollback set failed");
+    } else if (err==ESP_ERR_OTA_ROLLBACK_FAILED){
+        ESP_LOGE(TAG2, "OTA app not found!!!");
+    } else {
+        ESP_LOGI(TAG2, "App is invalid, rollback in progress");
+    }
+}
+
+esp_err_t download_ota(void)
+{
+    if (status==1){
+        ESP_LOGE(TAG2,"OTA is not available on AP"); 
+        return ESP_FAIL;
+    }
     s_ota_event_group = xEventGroupCreate();
     /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
      * Read "Establishing Wi-Fi or Ethernet Connection" section in
      * examples/protocols/README.md for more information about this function.
     */
-    
+    uint8_t otas = esp_ota_get_app_partition_count();
+    ESP_LOGI(TAG2,"OTA partions %d.",otas); 
     #if defined(CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE)
     /**
      * We are treating successful WiFi connection as a checkpoint to cancel rollback
      * process and mark newly updated firmware image as active. For production cases,
      * please tune the checkpoint behavior per end application requirement.
      */
+    ESP_LOGI(TAG2,"Cheacking ota state."); 
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;
     err=esp_ota_get_state_partition(running, &ota_state) ;
     if (err== ESP_OK) {
         if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
-            if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
-                ESP_LOGI(TAG2, "App is valid, rollback cancelled successfully");
-            } else {
-                ESP_LOGE(TAG2, "Failed to cancel rollback");
-            }
+            ESP_LOGI(TAG2,"App state is PENDING_VERIFY");
+        } else if (ota_state == ESP_OTA_IMG_UNDEFINED)
+        {
+            ESP_LOGI(TAG2,"App state is UNDEFINED");
+        } else if (ota_state == ESP_OTA_IMG_NEW)
+        {
+            ESP_LOGI(TAG2,"App state is NEW");
+        } else if (ota_state == ESP_OTA_IMG_VALID)
+        {
+            ESP_LOGI(TAG2,"App state is VALID");
         }
+    } else if (err==ESP_ERR_NOT_SUPPORTED)
+    {
+        ESP_LOGW(TAG2, "It's not ota app.");
     } else {
         ESP_LOGE(TAG2, "%s", esp_err_to_name(err));
     }
@@ -887,11 +927,15 @@ void start_ota(void)
     #if CONFIG_BT_BLE_ENABLED || CONFIG_BT_NIMBLE_ENABLED
         esp_ble_helper_init();
     #endif
-        xTaskCreate(&ota_task, "ota_task", 1024 * 8, NULL, 5, NULL);
+        vTaskDelete(blink1Handle);
+        configure_led();
+        xTaskCreate(&blink_mode_3, "blink_3", 1024 * 2, NULL, 4, &blink3Handle);
+        xTaskCreate(&ota_task, "ota_task", 1024 * 8, NULL, 4, NULL);
         EventBits_t bits = xEventGroupWaitBits(s_ota_event_group,
             WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
             pdFALSE,
             pdFALSE,
             portMAX_DELAY);    
-    vEventGroupDelete(s_ota_event_group);      
+    vEventGroupDelete(s_ota_event_group);
+    return ESP_OK;
 }

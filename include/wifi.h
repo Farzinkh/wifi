@@ -35,7 +35,9 @@ tcpip_adapter_ip_info_t get_ip(); // print ip info
 void wifi_scan(void);
 
 //ota
-void start_ota(void);
+esp_err_t download_ota(void);
+void ota_verify();
+void ota_discredit();
 
 // NVS tasks
 esp_err_t save_key_value(char * key, char * value); 
