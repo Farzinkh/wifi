@@ -10,7 +10,7 @@ in your project directory create `components` folder and move into it.
 
  and choice beetwen STA , AP , SMART modes.
 ## OTA config
-move `sdkconfig.defaults` and `partitions.csv` to root of your project and create `server_certs` folder and run
+move anything inside `config & server` folder to root of your project then create `server_certs` folder and run
 
 `openssl req -x509 -newkey rsa:2048 -keyout server_certs/ca_key.pem -out server_certs/ca_cert.pem -days 365 -nodes`
 
@@ -18,7 +18,7 @@ enter server ip as common name then install server requirements once by
 
 `pip install -r requirments.txt`
 
-then run server 
+finally run server 
 
 `python server.py`
 
