@@ -14,9 +14,13 @@ move `sdkconfig.defaults` and `partitions.csv` to root of your project and creat
 
 `openssl req -x509 -newkey rsa:2048 -keyout server_certs/ca_key.pem -out server_certs/ca_cert.pem -days 365 -nodes`
 
-enter server ip as common name then run 
+enter server ip as common name then install server requirements once by
 
-`openssl s_server -WWW -key server_certs/ca_key.pem -cert server_certs/ca_cert.pem -port 8070`
+`pip install -r requirments.txt`
+
+then run server 
+
+`python server.py`
 
 and you are done whenever you change app version in menuconfig and recompile your code by `idf.py build`
 and restart esp32 it will update constantly.

@@ -22,9 +22,12 @@
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 
+#include "esp_tls.h"
+
 #include "wifi.h"
 
-int led_state ;
+int led_state;
+bool led_end=false;
 esp_err_t err;
 TaskHandle_t blink1Handle;
 TaskHandle_t blink2Handle;
@@ -52,6 +55,7 @@ static void blink_mode_1(void *pvParameter)
         s_led_state = !s_led_state;
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
+    led_end=true;
     gpio_reset_pin(BLINK_GPIO);
     vTaskDelete(NULL);
 }
@@ -171,7 +175,6 @@ static EventGroupHandle_t s_ota_event_group;
 void ota_task(void *pvParameter)
 {
     ESP_LOGI(TAG2, "Starting OTA");
-
     esp_err_t ota_finish_err = ESP_OK;
     esp_http_client_config_t config = {
         .url = CONFIG_OTA_FIRMWARE_UPGRADE_URL,
@@ -179,7 +182,6 @@ void ota_task(void *pvParameter)
         .timeout_ms = CONFIG_OTA_RECV_TIMEOUT,
         .keep_alive_enable = true,
     };
-
 #ifdef CONFIG_OTA_FIRMWARE_UPGRADE_URL_FROM_STDIN
     char url_buf[OTA_URL_SIZE];
     if (strcmp(config.url, "FROM_STDIN") == 0) {
@@ -210,6 +212,8 @@ void ota_task(void *pvParameter)
     esp_err_t err = esp_https_ota_begin(&ota_config, &https_ota_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG2, "ESP HTTPS OTA Begin failed");
+        xEventGroupSetBits(s_ota_event_group, WIFI_FAIL_BIT);
+        vTaskDelete(blink3Handle);
         vTaskDelete(NULL);
     }
 
@@ -865,6 +869,133 @@ void ota_discredit()
         ESP_LOGI(TAG2, "App is invalid, rollback in progress");
     }
 }
+static const char *TAG3 = "HTTPS";
+esp_tls_client_session_t *tls_client_session = NULL;
+char version[16];
+
+static const char REQUEST[] = "GET " CONFIG_OTA_SERVER_ROOT " HTTP/1.1\r\n"
+                             "Host: "CONFIG_OTA_SERVER"\r\n"
+                             "User-Agent: esp-idf/4.0 esp32\r\n"
+                             "\r\n";
+                             
+static void https_get_request(esp_tls_cfg_t cfg)
+{
+    int count=0;
+    char buf[512];
+    char v[16];
+    int ret, len;
+    const char s[]="\n";
+    char *token;
+    struct esp_tls *tls = esp_tls_conn_http_new(CONFIG_OTA_SERVER_ROOT, &cfg);
+
+    if (tls != NULL) {
+        ESP_LOGI(TAG3, "Connection established...");
+    } else {
+        ESP_LOGE(TAG3, "Connection failed...");
+        goto exit;
+    }
+
+    /* The TLS session is successfully established, now saving the session ctx for reuse */
+    if (tls_client_session == NULL) {
+        tls_client_session = esp_tls_get_client_session(tls);
+    }
+
+    size_t written_bytes = 0;
+    do {
+        ret = esp_tls_conn_write(tls,
+                                 REQUEST + written_bytes,
+                                 sizeof(REQUEST) - written_bytes);
+        if (ret >= 0) {
+            ESP_LOGI(TAG3, "%d bytes written", ret);
+            written_bytes += ret;
+        } else if (ret != ESP_TLS_ERR_SSL_WANT_READ  && ret != ESP_TLS_ERR_SSL_WANT_WRITE) {
+            ESP_LOGE(TAG3, "esp_tls_conn_write  returned: [0x%02X](%s)", ret, esp_err_to_name(ret));
+            goto exit;
+        }
+    } while (written_bytes < sizeof(REQUEST));
+
+    ESP_LOGI(TAG3, "Reading HTTPS response...");
+    do {
+        len = sizeof(buf) - 1;
+        bzero(buf, sizeof(buf));
+        ret = esp_tls_conn_read(tls, (char *)buf, len);
+
+        if (ret == ESP_TLS_ERR_SSL_WANT_WRITE  || ret == ESP_TLS_ERR_SSL_WANT_READ) {
+            continue;
+        }
+
+        if (ret < 0) {
+            ESP_LOGE(TAG3, "esp_tls_conn_read  returned [-0x%02X](%s)", -ret, esp_err_to_name(ret));
+            break;
+        }
+
+        if (ret == 0) {
+            ESP_LOGI(TAG3, "connection closed");
+            break;
+        }
+
+        len = ret;
+        ESP_LOGD(TAG3, "%d bytes read", len);
+        /* Print response directly to stdout as it is read */
+        for (int i = 0; i < len; i++) {
+            putchar(buf[i]);
+        }
+        putchar('\n'); // JSON output doesn't have a newline at end
+        token=strtok(buf,s);
+        while (token !=NULL)
+        {
+            //printf("token : %s\n",token);
+            if (count==6)
+            {
+                strcpy(v,token);
+            }
+            
+            token=strtok(NULL,s);
+            count+=1;
+        }
+    } while (1);
+    int j = 0;
+    for (int i = 0; i < sizeof(v); i ++) {
+        if (v[i] != '"' && v[i] != '\n') { 
+            version[j] = v[i];
+            j++;
+        }}    
+    ESP_LOGI(TAG3, "Last version on server:%s",version);
+
+exit:
+    esp_tls_conn_delete(tls);
+}
+
+static void https_get_request_using_cacert_buf(void)
+{
+    ESP_LOGI(TAG3, "https_request using cacert_buf");
+    esp_tls_cfg_t cfg = {
+        .cacert_buf = (const unsigned char *) server_cert_pem_start,
+        .cacert_bytes = server_cert_pem_end - server_cert_pem_start,
+    };
+    https_get_request(cfg);
+}
+
+static void https_get_request_using_already_saved_session(void)
+{
+    ESP_LOGI(TAG3, "https_request using saved client session");
+    esp_tls_cfg_t cfg = {
+        .client_session = tls_client_session,
+    };
+    https_get_request(cfg);
+    free(tls_client_session);
+    tls_client_session = NULL;
+}
+
+esp_err_t check_version(char old_version[32])
+{
+    https_get_request_using_cacert_buf();
+    if (strcmp(old_version,version)==0){
+        ESP_LOGE(TAG2,"No update available."); 
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
 
 esp_err_t download_ota(void)
 {
@@ -885,7 +1016,6 @@ esp_err_t download_ota(void)
      * process and mark newly updated firmware image as active. For production cases,
      * please tune the checkpoint behavior per end application requirement.
      */
-    ESP_LOGI(TAG2,"Cheacking ota state."); 
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;
     err=esp_ota_get_state_partition(running, &ota_state) ;
@@ -909,25 +1039,32 @@ esp_err_t download_ota(void)
         ESP_LOGE(TAG2, "%s", esp_err_to_name(err));
     }
     #endif
+    esp_app_desc_t running_app_info;
+    esp_ota_get_partition_description(running, &running_app_info);
+    ESP_LOGI(TAG2,"App version %s.",running_app_info.version); 
+    err=check_version(running_app_info.version);
+    if (err==ESP_OK)
+    {
+        #if !CONFIG_BT_ENABLED
+            /* Ensure to disable any WiFi power save mode, this allows best throughput
+            * and hence timings for overall OTA operation.
+            */
+            esp_wifi_set_ps(WIFI_PS_NONE);
+        #else
+            /* WIFI_PS_MIN_MODEM is the default mode for WiFi Power saving. When both
+            * WiFi and Bluetooth are running, WiFI modem has to go down, hence we
+            * need WIFI_PS_MIN_MODEM. And as WiFi modem goes down, OTA download time
+            * increases.
+            */
+            esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+        #endif // CONFIG_BT_ENABLED
 
-    #if !CONFIG_BT_ENABLED
-        /* Ensure to disable any WiFi power save mode, this allows best throughput
-        * and hence timings for overall OTA operation.
-        */
-        esp_wifi_set_ps(WIFI_PS_NONE);
-    #else
-        /* WIFI_PS_MIN_MODEM is the default mode for WiFi Power saving. When both
-        * WiFi and Bluetooth are running, WiFI modem has to go down, hence we
-        * need WIFI_PS_MIN_MODEM. And as WiFi modem goes down, OTA download time
-        * increases.
-        */
-        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-    #endif // CONFIG_BT_ENABLED
-
-    #if CONFIG_BT_BLE_ENABLED || CONFIG_BT_NIMBLE_ENABLED
-        esp_ble_helper_init();
-    #endif
-        vTaskDelete(blink1Handle);
+        #if CONFIG_BT_BLE_ENABLED || CONFIG_BT_NIMBLE_ENABLED
+            esp_ble_helper_init();
+        #endif
+        if (!led_end){
+            vTaskDelete(blink1Handle);
+        }
         configure_led();
         xTaskCreate(&blink_mode_3, "blink_3", 1024 * 2, NULL, 4, &blink3Handle);
         xTaskCreate(&ota_task, "ota_task", 1024 * 8, NULL, 4, NULL);
@@ -936,6 +1073,8 @@ esp_err_t download_ota(void)
             pdFALSE,
             pdFALSE,
             portMAX_DELAY);    
-    vEventGroupDelete(s_ota_event_group);
-    return ESP_OK;
+        vEventGroupDelete(s_ota_event_group);
+        return ESP_OK;
+    }
+    return ESP_FAIL;
 }
