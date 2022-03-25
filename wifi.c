@@ -878,7 +878,7 @@ static const char REQUEST[] = "GET " CONFIG_OTA_SERVER_ROOT " HTTP/1.1\r\n"
                              "User-Agent: esp-idf/4.0 esp32\r\n"
                              "\r\n";
                              
-static void https_get_request(esp_tls_cfg_t cfg)
+esp_err_t https_get_request(esp_tls_cfg_t cfg)
 {
     int count=0;
     char buf[512];
@@ -886,12 +886,14 @@ static void https_get_request(esp_tls_cfg_t cfg)
     int ret, len;
     const char s[]="\n";
     char *token;
+    bool problem=false;
     struct esp_tls *tls = esp_tls_conn_http_new(CONFIG_OTA_SERVER_ROOT, &cfg);
 
     if (tls != NULL) {
         ESP_LOGI(TAG3, "Connection established...");
     } else {
         ESP_LOGE(TAG3, "Connection failed...");
+        problem=true;
         goto exit;
     }
 
@@ -910,6 +912,7 @@ static void https_get_request(esp_tls_cfg_t cfg)
             written_bytes += ret;
         } else if (ret != ESP_TLS_ERR_SSL_WANT_READ  && ret != ESP_TLS_ERR_SSL_WANT_WRITE) {
             ESP_LOGE(TAG3, "esp_tls_conn_write  returned: [0x%02X](%s)", ret, esp_err_to_name(ret));
+            problem=true;
             goto exit;
         }
     } while (written_bytes < sizeof(REQUEST));
@@ -964,32 +967,47 @@ static void https_get_request(esp_tls_cfg_t cfg)
 
 exit:
     esp_tls_conn_delete(tls);
+    if(problem){
+        return ESP_FAIL;    
+    }
+    return ESP_OK;
 }
 
-static void https_get_request_using_cacert_buf(void)
+esp_err_t https_get_request_using_cacert_buf(void)
 {
     ESP_LOGI(TAG3, "https_request using cacert_buf");
     esp_tls_cfg_t cfg = {
         .cacert_buf = (const unsigned char *) server_cert_pem_start,
         .cacert_bytes = server_cert_pem_end - server_cert_pem_start,
     };
-    https_get_request(cfg);
+    err=https_get_request(cfg);
+    if (err!=ESP_OK){
+        ESP_LOGE(TAG3, "https server is not available");
+    }
+    return err;
 }
 
-static void https_get_request_using_already_saved_session(void)
+esp_err_t https_get_request_using_already_saved_session(void)
 {
     ESP_LOGI(TAG3, "https_request using saved client session");
     esp_tls_cfg_t cfg = {
         .client_session = tls_client_session,
     };
-    https_get_request(cfg);
+    err=https_get_request(cfg);
+    if (err!=ESP_OK){
+        ESP_LOGI(TAG3, "https server is not available");
+    }
     free(tls_client_session);
     tls_client_session = NULL;
+    return err;
 }
 
 esp_err_t check_version(char old_version[32])
 {
-    https_get_request_using_cacert_buf();
+    err=https_get_request_using_cacert_buf();
+    if (err != ESP_OK){
+        return ESP_FAIL;
+    }
     if (strcmp(old_version,version)==0){
         ESP_LOGE(TAG2,"No update available."); 
         return ESP_FAIL;
