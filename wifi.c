@@ -28,6 +28,7 @@
 
 int led_state;
 bool led_end=false;
+char liveversion[16];
 esp_err_t err;
 TaskHandle_t blink1Handle;
 TaskHandle_t blink2Handle;
@@ -851,6 +852,24 @@ void wifi_scan(void)
 
 void ota_verify()
 {
+    esp_reset_reason_t res;
+    res=esp_reset_reason();
+    if (res==ESP_RST_PANIC){
+        ESP_LOGW(TAG2, "Reset reason panic");
+        ESP_LOGW(TAG2, "Downgrade to previous version");
+        strcpy(key, "badversion");
+        save_key_value(key,liveversion);
+        err=esp_ota_mark_app_invalid_rollback_and_reboot();
+        if ( err== ESP_FAIL || err==ESP_ERR_OTA_ROLLBACK_FAILED) {
+            ESP_LOGE(TAG2, "Downgrade to previous version is not possible");
+        } 
+    } else if(res==ESP_RST_SW){
+        ESP_LOGW(TAG2, "Reset reason software reset");
+    }else if(res==ESP_RST_UNKNOWN){
+        ESP_LOGW(TAG2, "Reset reason unknown");
+    }else if(res==ESP_RST_POWERON){
+        ESP_LOGW(TAG2, "Reset reason power-on event");
+    }
     if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
         ESP_LOGI(TAG2, "App is valid, rollback cancelled successfully");
     } else {
@@ -873,13 +892,26 @@ static const char *TAG3 = "HTTPS";
 esp_tls_client_session_t *tls_client_session = NULL;
 char version[16];
 
-static const char REQUEST[] = "GET " CONFIG_OTA_SERVER_ROOT " HTTP/1.1\r\n"
-                             "Host: "CONFIG_OTA_SERVER"\r\n"
-                             "User-Agent: esp-idf/4.0 esp32\r\n"
-                             "\r\n";
+//static const char REQUEST[] = "GET " CONFIG_OTA_SERVER_ROOT " HTTP/1.1\r\n"
+//                             "Host: "CONFIG_OTA_SERVER"\r\n"
+//                             "User-Agent: esp-idf/4.0 esp32\r\n"
+//                             "\r\n";
                              
 esp_err_t https_get_request(esp_tls_cfg_t cfg)
 {
+    char POST_REQUEST[] =  "POST " CONFIG_OTA_SERVER_ROOT " HTTP/1.1\r\n"
+                            "Host: "CONFIG_OTA_SERVER"\r\n"
+                            "Connection: close\r\n"
+                            "Accept: */*\r\n"
+                            "User-Agent: esp-idf/4.0 esp32\r\n"
+                            "Content-Type: text/plain\r\n"
+                            "Content-Length: 16\r\n"
+                            "\r\n"
+                            "v=               \r\n"; 
+    for (size_t i = 0; i < 9; i++)
+    {
+        POST_REQUEST[190+i]=liveversion[i];   
+    }
     int count=0;
     char buf[512];
     char v[16];
@@ -905,8 +937,8 @@ esp_err_t https_get_request(esp_tls_cfg_t cfg)
     size_t written_bytes = 0;
     do {
         ret = esp_tls_conn_write(tls,
-                                 REQUEST + written_bytes,
-                                 sizeof(REQUEST) - written_bytes);
+                                 POST_REQUEST + written_bytes,
+                                 sizeof(POST_REQUEST) - written_bytes);
         if (ret >= 0) {
             ESP_LOGI(TAG3, "%d bytes written", ret);
             written_bytes += ret;
@@ -915,7 +947,7 @@ esp_err_t https_get_request(esp_tls_cfg_t cfg)
             problem=true;
             goto exit;
         }
-    } while (written_bytes < sizeof(REQUEST));
+    } while (written_bytes < sizeof(POST_REQUEST));
 
     ESP_LOGI(TAG3, "Reading HTTPS response...");
     do {
@@ -1004,12 +1036,26 @@ esp_err_t https_get_request_using_already_saved_session(void)
 
 esp_err_t check_version(char old_version[32])
 {
+    char badversion[16];
     err=https_get_request_using_cacert_buf();
     if (err != ESP_OK){
         return ESP_FAIL;
     }
+    strcpy(key, "badversion");
+    err=load_key_value(key, badversion, sizeof(badversion));
+    if (err != ESP_OK )
+    {
+        ESP_LOGE(TAG2, "Error (%s) loading to NVS", esp_err_to_name(err));
+    }
+    else
+    {
+        ESP_LOGI(TAG2, "Readed config: %s", badversion);
+    }
     if (strcmp(old_version,version)==0){
         ESP_LOGE(TAG2,"No update available."); 
+        return ESP_FAIL;
+    } else if (strcmp(version,badversion)==0){
+        ESP_LOGE(TAG2,"No healthy update available."); 
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -1060,6 +1106,7 @@ esp_err_t download_ota(void)
     esp_app_desc_t running_app_info;
     esp_ota_get_partition_description(running, &running_app_info);
     ESP_LOGI(TAG2,"App version %s.",running_app_info.version); 
+    strcpy(liveversion,running_app_info.version);
     err=check_version(running_app_info.version);
     if (err==ESP_OK)
     {

@@ -26,8 +26,10 @@ def handle_unexpected_error(error):
 
     return flask.jsonify(response), status_code
     
-@app.route("/")
+@app.route("/", methods=['GET', 'POST'])
 def hello():
+    data=flask.request.data
+    print("running version:",data.decode('UTF-8')[2:])
     file1 = open('sdkconfig', 'r')
     Lines = file1.readlines()
     for line in Lines:
@@ -35,12 +37,12 @@ def hello():
             continue
         if line[0:23]=="CONFIG_APP_PROJECT_VER=":
             version=line[23:].strip()
-            print(version)
+            print("Last version:",version)
     response = flask.make_response(version, 200)
     response.mimetype = "text/plain"
     return response        
 
-@app.route("/build/<path:filename>")
+@app.route("/build/<path:filename>", methods=['GET', 'POST'])
 def downloader(filename):
     if not flask.request.is_secure:
         app.logger.warning("Not secure!!!")
