@@ -19,6 +19,13 @@ menu "WIFI Configuration"
 		default 0 if AP
 		default 2 if SMART
 		
+	config LWIP_LOCAL_HOSTNAME
+		string "ESP NAME"
+		depends on STA || SMART
+		default "ESP_00"
+		help
+			ESP name in network.
+				
 	config ESP_AP_WIFI_SSID
 		string "WiFi SSID FOR ESP"
 		depends on AP || SMART
@@ -138,11 +145,7 @@ menu "OTA"
         default "https://192.168.1.6:8070/build/<project_name>.bin"
         help
             URL to download image file.
-	config OTA_SERVER_ROOT
-		string "Server root address"
-		default "https://192.168.1.6:8070/"
-		help
-			Root of server.        
+       
 	config OTA_SERVER
 		string "Server address"
 		default "https://192.168.1.6:8070"

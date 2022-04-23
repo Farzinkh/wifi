@@ -38,7 +38,7 @@ and restart esp32 it will update constantly.
 
 `check_time()` update time if internet is available.
 
-`get_ip()` get ip address.
+`get_ip()` get ip address and wait for connection if disconnected.
 
 `wifi_scan()` scan for APs.
 

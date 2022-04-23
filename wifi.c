@@ -365,6 +365,7 @@ static void sta_event_handler(void* arg, esp_event_base_t event_base,
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
+            xEventGroupClearBits(s_wifi_event_group,WIFI_CONNECTED_BIT);
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
             esp_restart();
@@ -442,6 +443,8 @@ esp_err_t wifi_init_sta()
     ret_value=esp_wifi_set_bandwidth(WIFI_IF_STA,WIFI_BW_HT40);
     if (ret_value != ESP_OK){
         ESP_LOGE(TAG, "Error in setting bandwidth %s",esp_err_to_name(ret_value));
+    } else{
+        ESP_LOGI(TAG, "Bandwidth set.");
     }
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
     esp_event_handler_instance_t instance_any_id;
@@ -505,7 +508,6 @@ esp_err_t wifi_init_sta()
     ESP_LOGI(TAG, "wifi_init_sta finished.");
 	ESP_LOGI(TAG, "connect to ap SSID:%s", ESP_STA_WIFI_SSID);
 	status=0;
-	vEventGroupDelete(s_wifi_event_group); 
 	err = esp_wifi_set_rssi_threshold(-80);
     if (err != ESP_OK )
     {
@@ -637,6 +639,11 @@ tcpip_adapter_ip_info_t get_ip()
     uint8_t derived_mac_addr[6] = {0};
     tcpip_adapter_ip_info_t ip_info;
     if (status==0){
+        EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+            WIFI_CONNECTED_BIT,
+            pdFALSE,
+            pdFALSE,
+            portMAX_DELAY);
         ESP_ERROR_CHECK(tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info));
         err=esp_read_mac(derived_mac_addr,ESP_MAC_WIFI_STA);
     } else {
@@ -892,15 +899,21 @@ static const char *TAG3 = "HTTPS";
 esp_tls_client_session_t *tls_client_session = NULL;
 char version[16];
 
-//static const char REQUEST[] = "GET " CONFIG_OTA_SERVER_ROOT " HTTP/1.1\r\n"
+//static const char REQUEST[] = "GET " CONFIG_OTA_SERVER "/ HTTP/1.1\r\n"
 //                             "Host: "CONFIG_OTA_SERVER"\r\n"
 //                             "User-Agent: esp-idf/4.0 esp32\r\n"
 //                             "\r\n";
                              
 esp_err_t https_get_request(esp_tls_cfg_t cfg)
 {
-    char POST_REQUEST[] =  "POST " CONFIG_OTA_SERVER_ROOT " HTTP/1.1\r\n"
-                            "Host: "CONFIG_OTA_SERVER"\r\n"
+    char CONFIG_OTA_SERVER_ROOT[30];
+    strcpy(CONFIG_OTA_SERVER_ROOT,CONFIG_OTA_SERVER);
+    strcat(CONFIG_OTA_SERVER_ROOT,"/");
+    char POST_REQUEST[200];
+    strcpy(POST_REQUEST,"POST ");
+    strcat(POST_REQUEST,CONFIG_OTA_SERVER_ROOT);
+    strcat(POST_REQUEST," HTTP/1.1\r\n");
+    char rest[] =   "Host: "CONFIG_OTA_SERVER"\r\n"
                             "Connection: close\r\n"
                             "Accept: */*\r\n"
                             "User-Agent: esp-idf/4.0 esp32\r\n"
@@ -908,6 +921,7 @@ esp_err_t https_get_request(esp_tls_cfg_t cfg)
                             "Content-Length: 16\r\n"
                             "\r\n"
                             "v=               \r\n"; 
+    strcat(POST_REQUEST,rest);                        
     for (size_t i = 0; i < 9; i++)
     {
         POST_REQUEST[190+i]=liveversion[i];   
@@ -1063,6 +1077,8 @@ esp_err_t check_version(char old_version[32])
 
 esp_err_t download_ota(void)
 {
+    //esp_log_level_set("*",ESP_LOG_DEBUG);
+
     if (status==1){
         ESP_LOGE(TAG2,"OTA is not available on AP"); 
         return ESP_FAIL;
