@@ -909,7 +909,7 @@ esp_err_t https_get_request(esp_tls_cfg_t cfg)
     char CONFIG_OTA_SERVER_ROOT[30];
     strcpy(CONFIG_OTA_SERVER_ROOT,CONFIG_OTA_SERVER);
     strcat(CONFIG_OTA_SERVER_ROOT,"/");
-    char POST_REQUEST[200];
+    char POST_REQUEST[210];
     strcpy(POST_REQUEST,"POST ");
     strcat(POST_REQUEST,CONFIG_OTA_SERVER_ROOT);
     strcat(POST_REQUEST," HTTP/1.1\r\n");
