@@ -2,13 +2,11 @@
 This is very simple component for working with WIFI base on ESP_IDF V4.3.
  
 ## Installation
-in your project directory create `components` folder and move into it.
+In your project root directory run:
 
- `git clone https://github.com/Farzinkh/wifi.git`
+ `git submodule add https://github.com/Farzinkh/wifi.git components/wifi`
 
- now import it in your main.c by `#include "wifi.h"`.
-
- and choice beetwen STA , AP , SMART modes.
+ now import it in your main.c by `#include "wifi.h"` and choice beetwen STA , AP , SMART modes.
 ## OTA config
 move anything inside `config & server` folder to root of your project then create `server_certs` folder and run
 
