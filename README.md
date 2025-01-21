@@ -7,6 +7,9 @@ In your project root directory run:
  `git submodule add https://github.com/Farzinkh/wifi.git components/wifi`
 
  now import it in your main.c by `#include "wifi.h"` and choice beetwen STA , AP , SMART modes.
+## Overview
+
+Overview Map of the component [here](https://product-map.ai/app/public/bbe530ef885a460985e624bafce99ede).
 ## OTA config
 move anything inside `config & server` folder to root of your project then create `server_certs` folder and run
 
